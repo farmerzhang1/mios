@@ -33,6 +33,8 @@ module SAT.Mios.Solver
        , setStat
        , incrementStat
        , getStats
+       , VarHeap
+       , newVarHeap
        )
         where
 
@@ -178,7 +180,7 @@ decisionLevel = get' . trailLim
 -- | returns the assignment (:: 'LiftedBool' = @[-1, 0, -1]@) from 'Var'.
 {-# INLINE valueVar #-}
 valueVar :: Solver -> Var -> IO Int
-valueVar = getNth . assigns
+valueVar solver var= getNth (assigns solver) var
 
 -- | returns the assignment (:: 'LiftedBool' = @[-1, 0, -1]@) from 'Lit'.
 {-# INLINE valueLit #-}

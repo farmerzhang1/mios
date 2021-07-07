@@ -41,6 +41,8 @@ dependencies:
   - primitive >= 0.6
   - bytestring >= 0.10
   - vector >= 0.12
+  - mtl
+  - lens
 library:
   source-dirs:       src
 

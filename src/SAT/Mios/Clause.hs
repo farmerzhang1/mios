@@ -45,7 +45,7 @@ data Clause = Clause
 -- | The equality on 'Clause' is defined with 'reallyUnsafePtrEquality'.
 instance Eq Clause where
   {-# SPECIALIZE INLINE (==) :: Clause -> Clause -> Bool #-}
-  (==) x y = x `seq` y `seq` tagToEnum# (reallyUnsafePtrEquality# x y)
+  (==) x y = x `seq` y `seq` (tagToEnum# (reallyUnsafePtrEquality# x y) :: Bool)
 
 instance Show Clause where
   show NullClause = "NullClause"

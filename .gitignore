@@ -1,5 +1,6 @@
 DiscordSecret.hs
 stack.yaml
+stack.yaml.lock
 .stack-work
 .cabal-sandbox
 mios.cabal
