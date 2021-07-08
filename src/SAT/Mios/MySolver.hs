@@ -12,7 +12,7 @@ import Control.Monad.State
 import Data.List (intercalate)
 import Numeric (showFFloat)
 import SAT.Mios.Solver
-    ( StatIndex(EndOfStatIndex), VarHeap, newVarHeap, decisionLevel )
+    ( StatIndex(EndOfStatIndex), VarHeap (..), newVarHeap, decisionLevel )
 import SAT.Mios.Types
 import SAT.Mios.Clause
 import SAT.Mios.ClauseManager
@@ -151,6 +151,7 @@ myValueVar var = do --getNth . assigns
 
 myDecisionLevel :: StateT MySolver IO Int
 myDecisionLevel = do -- get' . trailLim
+  -- uses trailLim get'
   trailLimStack <- use trailLim
   liftIO $ get' trailLimStack -- stack has multiple values, but we only need the first one here
 
@@ -180,9 +181,155 @@ myEnqueue p from = do
     return True
 
 -- 妙蛙
-assume :: Lit -> StateT MySolver IO Bool
-assume p = do
+myAssume :: Lit -> StateT MySolver IO Bool
+myAssume p = do
   trail_lim_stack <- use trailLim
   trail_stack <- use trail
   pushToWithState trail_lim_stack =<< get'WithState trail_stack
   myEnqueue p NullClause
+
+-- keeping all assignment at 'level' but not beyond
+myCancelUntil :: Int -> StateT MySolver IO ()
+myCancelUntil lvl = do
+  dl <- myDecisionLevel
+  trailStack <- use trail
+  trailLimStack <- use trailLim
+  assignments <- use assigns
+  phaseVec <- use phases
+  reasonVec <- use reason
+  ts <- get'WithState trailStack
+  ls <- get'WithState trailLimStack
+  when (lvl < dl) $ do
+    lim <- getNthWithState trailLimStack (lvl + 1)
+    let
+      loopOnTrail :: Int -> StateT MySolver IO ()
+      loopOnTrail ((lim <) -> False) = return ()
+      loopOnTrail c = do
+        x <- lit2var <$> getNthWithState trailStack c
+        setNthWithState phaseVec x =<< getNthWithState assignments x
+        setNthWithState assignments x LBottom
+        setNthWithState reasonVec x NullClause -- 'analyze` uses reason without checking assigns
+        s <- get
+        liftIO $ undoVO s x
+        loopOnTrail $ c - 1
+    loopOnTrail ts
+    shrinkByWithState trailStack (ts - lim)
+    shrinkByWithState trailLimStack (ls - lvl)
+    qHead <~ get'WithState trailStack
+
+instance VarOrder MySolver where
+{-
+  -- | __Fig. 6. (p.10)__
+  -- Creates a new SAT variable in the solver.
+  newVar _ = return 0
+    -- i <- nVars s
+    -- Version 0.4:: push watches =<< newVec      -- push'
+    -- Version 0.4:: push watches =<< newVec      -- push'
+    -- push undos =<< newVec        -- push'
+    -- push reason NullClause       -- push'
+    -- push assigns LBottom
+    -- push level (-1)
+    -- push activities (0.0 :: Double)
+    -- newVar order
+    -- growQueueSized (i + 1) propQ
+    -- return i
+-}
+  {-# SPECIALIZE INLINE updateVO :: MySolver -> Var -> IO () #-}
+  updateVO = increaseHeap
+  {-# SPECIALIZE INLINE undoVO :: MySolver -> Var -> IO () #-}
+  undoVO s v = inHeap s v >>= (`unless` insertHeap s v)
+  {-# SPECIALIZE INLINE selectVO :: MySolver -> IO Var #-}
+  selectVO s = do
+    let
+      asg = _assigns s
+      -- | returns the most active var (heap-based implementation)
+      loop :: IO Var
+      loop = do
+        n <- numElementsInHeap s
+        if n == 0
+          then return 0
+          else do
+              v <- getHeapRoot s
+              x <- getNth asg v
+              if x == LBottom then return v else loop
+    loop
+
+{-# INLINE inHeap #-}
+inHeap :: MySolver -> Var -> IO Bool
+inHeap MySolver{..} n = case idxs _order of at -> (/= 0) <$> getNth at n
+
+{-# INLINE numElementsInHeap #-}
+numElementsInHeap :: MySolver -> IO Int
+numElementsInHeap = get' . heap . _order
+
+{-# INLINE increaseHeap #-}
+increaseHeap :: MySolver -> Int -> IO ()
+increaseHeap s@MySolver{..} n = case idxs _order of
+                                at -> inHeap s n >>= (`when` (percolateUp s =<< getNth at n))
+
+{-# INLINABLE percolateUp #-}
+percolateUp :: MySolver -> Int -> IO ()
+percolateUp MySolver{..} start = do
+  let VarHeap to at = _order
+  v <- getNth to start
+  ac <- getNth _activities v
+  let
+    loop :: Int -> IO ()
+    loop i = do
+      let iP = div i 2          -- parent
+      if iP == 0
+        then setNth to i v >> setNth at v i -- end
+        else do
+            v' <- getNth to iP
+            acP <- getNth _activities v'
+            if ac > acP
+              then setNth to i v' >> setNth at v' i >> loop iP -- loop
+              else setNth to i v >> setNth at v i              -- end
+  loop start
+
+{-# INLINABLE percolateDown #-}
+percolateDown :: MySolver -> Int -> IO ()
+percolateDown MySolver{..} start = do
+  let (VarHeap to at) = _order
+  n <- getNth to 0
+  v <- getNth to start
+  ac <- getNth _activities v
+  let
+    loop :: Int -> IO ()
+    loop i = do
+      let iL = 2 * i            -- left
+      if iL <= n
+        then do
+            let iR = iL + 1     -- right
+            l <- getNth to iL
+            r <- getNth to iR
+            acL <- getNth _activities l
+            acR <- getNth _activities r
+            let (ci, child, ac') = if iR <= n && acL < acR then (iR, r, acR) else (iL, l, acL)
+            if ac' > ac
+              then setNth to i child >> setNth at child i >> loop ci
+              else setNth to i v >> setNth at v i -- end
+        else setNth to i v >> setNth at v i       -- end
+  loop start
+
+{-# INLINABLE insertHeap #-}
+insertHeap :: MySolver -> Var -> IO ()
+insertHeap s@(_order -> VarHeap to at) v = do
+  n <- (1 +) <$> getNth to 0
+  setNth at v n
+  setNth to n v
+  SAT.Mios.Types.set' to n
+  percolateUp s n
+
+{-# INLINABLE getHeapRoot #-}
+getHeapRoot :: MySolver -> IO Int
+getHeapRoot s@(_order -> VarHeap to at) = do
+  r <- getNth to 1
+  l <- getNth to =<< getNth to 0 -- the last element's value
+  setNth to 1 l
+  setNth at l 1
+  setNth at r 0
+  modifyNth to (subtract 1) 0 -- pop
+  n <- getNth to 0
+  when (1 < n) $ percolateDown s 1
+  return r

@@ -33,7 +33,7 @@ module SAT.Mios.Solver
        , setStat
        , incrementStat
        , getStats
-       , VarHeap
+       , VarHeap (..)
        , newVarHeap
        )
         where
