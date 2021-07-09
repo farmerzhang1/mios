@@ -188,6 +188,11 @@ myAssume p = do
   pushToWithState trail_lim_stack =<< get'WithState trail_stack
   myEnqueue p NullClause
 
+-- i want something like this:
+-- do
+-- ts <- get' trail
+-- Lens' MySolver Stack (Lens' s t)
+-- VectorFamily t a
 -- keeping all assignment at 'level' but not beyond
 myCancelUntil :: Int -> StateT MySolver IO ()
 myCancelUntil lvl = do
@@ -218,22 +223,6 @@ myCancelUntil lvl = do
     qHead <~ get'WithState trailStack
 
 instance VarOrder MySolver where
-{-
-  -- | __Fig. 6. (p.10)__
-  -- Creates a new SAT variable in the solver.
-  newVar _ = return 0
-    -- i <- nVars s
-    -- Version 0.4:: push watches =<< newVec      -- push'
-    -- Version 0.4:: push watches =<< newVec      -- push'
-    -- push undos =<< newVec        -- push'
-    -- push reason NullClause       -- push'
-    -- push assigns LBottom
-    -- push level (-1)
-    -- push activities (0.0 :: Double)
-    -- newVar order
-    -- growQueueSized (i + 1) propQ
-    -- return i
--}
   {-# SPECIALIZE INLINE updateVO :: MySolver -> Var -> IO () #-}
   updateVO = increaseHeap
   {-# SPECIALIZE INLINE undoVO :: MySolver -> Var -> IO () #-}

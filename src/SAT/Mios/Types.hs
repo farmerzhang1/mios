@@ -82,7 +82,7 @@ data SolverException
 --  * aborted due to Mios specification or an internal error
 type SolverResult = Either SolverException Certificate
 
--- | represents "Var".
+-- | represents "Var". (both `p` and ``not p`` are the same)
 type Var = Int
 
 -- | Special constant in 'Var' (p.7)

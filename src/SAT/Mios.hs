@@ -372,7 +372,7 @@ parseInt !st = do
       loop :: (Int, B.ByteString) -> (Int, B.ByteString)
       loop (val, s) = case B.uncons s of
         Just (c, s') -> if '0' <= c && c <= '9' then loop (val * 10 + ord c - zero, s') else (val, s')
-        -- _ -> error (">>>>" ++ take 80 (B.unpack s))
+        _ -> error (">>>>value:" ++ show val ++ "s:" ++ take 80 (B.unpack s))
   case B.uncons st of
     Just ('-', st') -> let (k, x) = loop (0, st') in (negate k, x)
     Just ('0', st') -> (0, st')

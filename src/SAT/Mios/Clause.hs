@@ -54,9 +54,9 @@ instance Show Clause where
 -- | 'Clause' is a 'VecFamily' of 'Lit'.
 instance VecFamily Clause Lit where
   {-# SPECIALIZE INLINE getNth :: Clause -> Int -> IO Int #-}
-  getNth Clause{..} n = error "no getNth for Clause"
+  getNth _ _ = error "no getNth for Clause"
   {-# SPECIALIZE INLINE setNth :: Clause -> Int -> Int -> IO () #-}
-  setNth Clause{..} n x = error "no setNth for Clause"
+  setNth _ _ _ = error "no setNth for Clause"
   -- | returns a vector of literals in it.
   asList NullClause = return []
   asList Clause{..} = take <$> get' lits <*> (tail <$> asList lits)
@@ -107,11 +107,13 @@ newClauseFromStack l vec = do
 {-# INLINE getRank #-}
 getRank :: Clause -> IO Int
 getRank Clause{..} = get' rank
+getRank _ = error "getRank: Null Clause"
 
 -- | sets the rank of a given clause
 {-# INLINE setRank #-}
 setRank :: Clause -> Int -> IO ()
 setRank Clause{..} k = set' rank k
+setRank _ _ = error "setRank: NullClause"
 
 {-
 {-# INLINE getActivity #-}
