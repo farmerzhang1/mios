@@ -24,5 +24,5 @@ import SAT.Mios.Util.StateT
 
 simplify' :: MyClause -> StateT MySolver IO Bool
 simplify' c = do
-  let lits_stack = c ^. lits in
-    return True
+  let lits_stack = c ^. lits
+  return True

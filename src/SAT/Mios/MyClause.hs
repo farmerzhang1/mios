@@ -21,20 +21,19 @@ import Control.Monad.State
 type ClauseVector = MV.IOVector MyClause
 
 data MyClause = MyClause
-              {
-                _lits       :: !Stack    -- ^ literals and rank
-              , _rank       :: !Int      -- ^ another metrics of this clause
-              , _activity   :: !Double   -- ^ activity of this clause
+  {
+    _lits       :: !Stack    -- ^ literals and rank
+  , _rank       :: !Int      -- ^ another metrics of this clause
+  , _activity   :: !Double   -- ^ activity of this clause
 --            , protected  :: !Bool'    -- ^ protected from reduce
-              }
-  | MyNullClause                              -- as null pointer
-makeLensesFor [("_lits", "lits"), ("_rank", "rank"), ("_activity", "activity")] ''MyClause
+  }
+  -- | MyNullClause                              -- as null pointer
+makeLenses ''MyClause
 instance Eq MyClause where
   {-# SPECIALIZE INLINE (==) :: MyClause -> MyClause -> Bool #-}
   (==) x y = x `seq` y `seq` (tagToEnum# (reallyUnsafePtrEquality# x y) :: Bool)
 
 instance Show MyClause where
-  show MyNullClause = "my NullClause"
   show _ = "a clause"
 
 {-# INLINABLE newClauseFromStack #-}
