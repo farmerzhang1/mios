@@ -445,17 +445,6 @@ reduceDB s@Solver{..} = do
         removeWatch s =<< getNth cvec i
         loop $ i + 1
   k <- sortClauses s learnts $ div n 2 -- k is the number of clauses not to be purged
-{-
-  -- #GLUCOSE3.0 keep more
-  t3 <- get' . rank =<< getNth vec (thr -1)
-  t5 <- get' . rank =<< getNth vec (lim -1)
-
-  let k = case (t3 <= 3, t5 <= 5) of
-            (True, True)   -> min n (thr + 2000)
-            (False, False) -> thr
-            (_, _)         -> min n (thr + 1000)
-  -- let k = div thr 2
--}
   loop k                               -- CAVEAT: `vec` is a zero-based vector
   -- putStrLn $ "reduceDB: purge " ++ show (n - k) ++ " out of " ++ show n
   reset watches
