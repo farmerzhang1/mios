@@ -19,19 +19,20 @@ import SAT.Mios.ClauseManager
 import SAT.Mios.ClausePool
 import Control.Lens
 import SAT.Mios.Util.StateT
+import SAT.Mios.MyClause
 data MySolver = MySolver
               {
                 -------- Database
-                _clauses     :: !ClauseExtManager  -- ^ List of problem constraints.
-              , _learnts     :: !ClauseExtManager  -- ^ List of learnt clauses.
-              , _watches     :: !WatcherList       -- ^ list of constraint wathing 'p', literal-indexed
+                _clauses     :: !MyClauseManager  -- ^ List of problem constraints.
+              , _learnts     :: !MyClauseManager  -- ^ List of learnt clauses.
+              , _watches     :: !MyWatcherList       -- ^ list of constraint wathing 'p', literal-indexed
                 -------- Assignment Management
               , _assigns     :: !(Vec Int)         -- ^ The current assignments indexed on variables
               , _phases      :: !(Vec Int)         -- ^ The last assignments indexed on variables
               , _trail       :: !Stack             -- ^ List of assignments in chronological order
               , _trailLim    :: !Stack             -- ^ Separator indices for different decision levels in 'trail'.
               , _qHead       :: !Int              -- ^ 'trail' is divided at qHead; assignment part and queue part
-              , _reason      :: !ClauseVector      -- ^ For each variable, the constraint that implied its value
+              , _reason      :: !MyClauseVector      -- ^ For each variable, the constraint that implied its value
               , _level       :: !(Vec Int)         -- ^ For each variable, the decision level it was assigned
               , _ndd         :: !(Vec Int)         -- ^ For each variable, the number of depending decisions
               , _conflicts   :: !Stack             -- ^ Set of literals in the case of conflicts
@@ -77,8 +78,8 @@ newMySolver :: MiosConfiguration -> CNFDescription -> IO MySolver
 newMySolver conf (CNFDescription nv dummy_nc _) =
   MySolver
     -- Clause Database
-    <$> newManager dummy_nc                -- clauses
-    <*> newManager 2000                    -- learnts
+    <$> newManager' dummy_nc                -- clauses
+    <*> newManager' 2000                    -- learnts
     <*> newWatcherList nv 1                -- watches
     -- Assignment Management
     <*> newVec nv LBottom                  -- assigns
@@ -86,7 +87,7 @@ newMySolver conf (CNFDescription nv dummy_nc _) =
     <*> newStack nv                        -- trail
     <*> newStack nv                        -- trailLim
     <*> return 0                             -- qHead
-    <*> newClauseVector (nv + 1)           -- reason
+    <*> newClauseVector' (nv + 1)           -- reason
     <*> newVec nv (-1)                     -- level
     <*> newVec (2 * (nv + 1)) 0            -- ndd
     <*> newStack nv                        -- conflicts
@@ -132,11 +133,11 @@ nMyAssigns s = get' $ view trail s
 
 -- | returns the number of constraints (clauses).
 nMyClauses :: MySolver -> IO Int
-nMyClauses s = get' $ view clauses s
+nMyClauses s = _ -- get' $ view clauses s
 
 -- | returns the number of learnt clauses.
 nMyLearnts :: MySolver -> IO Int
-nMyLearnts s = get' $ view learnts s
+nMyLearnts s = _ -- get' $ view learnts s
 
 
 setMyAssign :: Int -> LiftedBool -> StateT MySolver IO ()
@@ -149,13 +150,16 @@ myValueVar var = do --getNth . assigns
   assignments <- use assigns
   getNthWithState assignments var
 
+valueLit' :: Lit -> StateT MySolver IO Int
+valueLit' p = (\x -> if positiveLit p then x else negate x) <$> getNth' assigns (lit2var p)
+
 myDecisionLevel :: StateT MySolver IO Int
 myDecisionLevel = do -- get' . trailLim
   -- uses trailLim get'
   trailLimStack <- use trailLim
   liftIO $ get' trailLimStack -- stack has multiple values, but we only need the first one here
 
-myEnqueue :: Lit -> Clause -> StateT MySolver IO Bool
+myEnqueue :: Lit -> Maybe MyClause -> StateT MySolver IO Bool
 myEnqueue p from = do
 {-
   -- bump psedue lbd of @from@
@@ -186,7 +190,7 @@ myAssume p = do
   trail_lim_stack <- use trailLim
   trail_stack <- use trail
   pushToWithState trail_lim_stack =<< get'WithState trail_stack
-  myEnqueue p NullClause
+  myEnqueue p Nothing
 
 -- i want something like this:
 -- do
@@ -213,7 +217,7 @@ myCancelUntil lvl = do
         x <- lit2var <$> getNthWithState trailStack c
         setNthWithState phaseVec x =<< getNthWithState assignments x
         setNthWithState assignments x LBottom
-        setNthWithState reasonVec x NullClause -- 'analyze` uses reason without checking assigns
+        setNthWithState reasonVec x Nothing -- 'analyze` uses reason without checking assigns
         s <- get
         liftIO $ undoVO s x
         loopOnTrail $ c - 1
