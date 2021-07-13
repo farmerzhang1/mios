@@ -27,6 +27,7 @@ data MyClause = MyClause {
   , _activity   :: !Double   -- ^ activity of this clause
 --            , protected  :: !Bool'    -- ^ protected from reduce
   } -- | MyNullClause                              -- as null pointer
+instance SingleStorage MyClause Int where -- TODO
 
 newClauseVector'  :: Int -> IO MyClauseVector
 newClauseVector' n = do
@@ -67,7 +68,7 @@ shrinkBy' k = do
 
 pushTo :: Maybe MyClause -> StateT MyClauseManager IO ()
 pushTo clause = do
-  n <- get'' nActives
+  n <- use nActives
   v <- readIORef clauseVector
   b <- readIORef keyVector
   if MV.length v -1 <= n
@@ -94,6 +95,9 @@ newManager' initialSize = do
 getClauseVector' :: MyClauseManager -> IO MyClauseVector
 getClauseVector' m = R.readIORef (_clauseVector m)
 
+getKeyVector' :: MyClauseManager -> IO (Vec Int)
+getKeyVector' MyClauseManager{..} = R.readIORef _keyVector
+
 -- instance VecFamily MyClauseManager (Maybe MyClause) where
 --   getNth = error "no getNth method for my clause manager"
 --   setNth = error "no setNth method for my clause manager"
@@ -105,21 +109,30 @@ instance VecFamily MyClauseVector (Maybe MyClause) where -- TODO
 
 type MyWatcherList = V.Vector MyClauseManager
 
-pushClauseWithKey :: Maybe MyClause -> Lit -> StateT MyClauseManager IO ()
-pushClauseWithKey c k = do
+pushClauseWithKey' :: Maybe MyClause -> Lit -> StateT MyClauseManager IO ()
+pushClauseWithKey' c k = do
   -- checkConsistency m c
   n <- use nActives
   v <- readIORef clauseVector
   b <- readIORef keyVector
   if MV.length v - 1 <= n
-    then do
-        let len = max 8 $ div (MV.length v) 2
-        v' <- MV.unsafeGrow v len
-        b' <- liftIO $ growBy b len
-        MV.unsafeWrite v' n c
-        setNthWithState b' n k
-        writeIORef clauseVector v'
-        writeIORef keyVector b'
-    else liftIO $ MV.unsafeWrite v n c >> setNth b n k
-  -- modify' _nActives (1 +)
+  then do
+    let len = max 8 $ div (MV.length v) 2
+    v' <- MV.unsafeGrow v len
+    b' <- liftIO $ growBy b len
+    MV.unsafeWrite v' n c
+    setNthWithState b' n k
+    writeIORef clauseVector v'
+    writeIORef keyVector b'
+  else liftIO $ MV.unsafeWrite v n c >> setNth b n k
   nActives += 1
+
+getNthWatcher' :: MyWatcherList -> Lit -> MyClauseManager
+getNthWatcher' = V.unsafeIndex
+
+newWatcherList' :: Int -> Int -> IO MyWatcherList
+newWatcherList' n m = do
+  let n' = int2lit (negate n) + 2
+  v <- MV.unsafeNew n'
+  mapM_  (\i -> MV.unsafeWrite v i =<< newManager' m) [0 .. n' - 1]
+  V.unsafeFreeze v
