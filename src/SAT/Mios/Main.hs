@@ -405,7 +405,7 @@ propagate s@Solver{..} = do
                                   setNth cvec j c
                                   setNth bvec j first
                                   if fv == LiftedF
-                                    then do ((== 0) <$> decisionLevel s) >>= (`when` set' ok LiftedF)
+                                    then do decisionLevel s >>= (`when` set' ok LiftedF) . (== 0)
                                             set' qHead =<< get' trail
                                             copy (i + 1) (j + 1)
                                             return LiftedF                 -- conflict
