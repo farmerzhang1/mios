@@ -15,7 +15,7 @@ import SAT.Mios.Solver
     ( StatIndex(EndOfStatIndex), VarHeap (..), newVarHeap, decisionLevel )
 import SAT.Mios.Types
 import SAT.Mios.Clause
-import SAT.Mios.ClauseManager
+import SAT.Mios.ClauseManager hiding (newWatcherList)
 import SAT.Mios.ClausePool
 import Control.Lens
 import SAT.Mios.Util.StateT
@@ -80,7 +80,7 @@ newMySolver conf (CNFDescription nv dummy_nc _) =
     -- Clause Database
     <$> newManager' dummy_nc                -- clauses
     <*> newManager' 2000                    -- learnts
-    <*> newWatcherList nv 1                -- watches
+    <*> newWatcherList' nv 1                -- watches
     -- Assignment Management
     <*> newVec nv LBottom                  -- assigns
     <*> newVec nv LBottom                  -- phases

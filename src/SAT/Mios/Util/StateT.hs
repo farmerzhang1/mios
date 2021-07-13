@@ -17,20 +17,37 @@ setNth' l index val = do
 
 getNthWithState :: VecFamily v a => v -> Int -> StateT e IO a
 getNthWithState aa bb = liftIO $ getNth aa bb
+
 getNth' :: VecFamily t a => Lens' s t -> Int -> StateT s IO a
-getNth' = _
+getNth' l index = do
+    vec <- use l
+    getNthWithState vec index
+
 pushToWithState :: StackFamily s t => s -> t -> StateT e IO ()
 pushToWithState aa bb = liftIO $ pushTo aa bb
+
+pushTo' :: StackFamily t a => Lens' s t -> a -> StateT s IO ()
+pushTo' l topush = do
+    stack <- use l
+    pushToWithState stack topush
+
 get'WithState :: SingleStorage s t => s -> StateT e IO t
 get'WithState aa = liftIO $ get' aa
 get'' :: SingleStorage t a => Lens' s t -> StateT s IO a
-get'' = _
+get'' l = do
+    ss <- use l
+    get'WithState ss
 
 undoVOWithState :: Var -> StateT e IO ()
-undoVOWithState aa  = error "undo undefined"
+undoVOWithState aa  = error "undo TODO"
 
 shrinkByWithState :: StackFamily s t => s -> Int -> StateT e IO ()
 shrinkByWithState stack i = liftIO $ shrinkBy stack i
+
+shrinkBy' :: StackFamily t a => Lens' s t -> Int -> StateT s IO ()
+shrinkBy' l num = do
+    stack <- use l
+    shrinkByWithState stack num
 
 readIORef :: Lens' s (R.IORef t) -> StateT s IO t
 readIORef l = do
