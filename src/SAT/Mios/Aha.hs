@@ -95,7 +95,7 @@ propagate' = do
                                       ok .= LiftedF -- TODO
                                       -- set' qHead =<< get' trail TODO
                                       -- trailSize <- get'' trail
-                                      (qHead .=) ==< get'' trail
+                                      (qHead .=) =<< get'' trail
                                       copy (i + 1) (j + 1)
                                       return LiftedF                 -- conflict
                                     else do
@@ -106,7 +106,8 @@ propagate' = do
                                                  if lv /= LiftedF
                                                    then do setNthWithState lstack 2 l'
                                                            setNthWithState lstack k falseLit
-                                                           liftIO $ pushClauseWithKey (getNthWatcher' watches (negateLit l')) c first
+                                                           -- (getNthWatcher' watches' (negateLit l'))
+                                                           zoom (watches . ix (negateLit l')) $ pushClauseWithKey' (Just c) first
                                                            return LiftedT  -- found another watch
                                                    else newWatch $! k + 1
                             ret <- newWatch 3
@@ -127,3 +128,26 @@ unsafeEnqueue' p from = do
   setNth' reason v from     -- NOTE: @from@ might be NULL!
   t <- use trail
   liftIO $ SAT.Mios.Types.pushTo t p
+
+reduceDB' :: StateT MySolver IO ()
+reduceDB' = do
+  n <- get'' learnts
+  lvec <- use learnts
+  cvec <- liftIO $ getClauseVector' lvec
+  let loop :: Int -> StateT MySolver IO ()
+      loop ((< n) -> False) = return ()
+      loop i = do
+        removeWatch' =<< liftIO (getNth cvec i)
+        loop (i+1)
+  k <- sortClauses' lvec $ div n 2 -- k is the number of clauses not to be purged
+  loop 1
+  zoom watches reset' -- TODO
+  SAT.Mios.Util.StateT.shrinkBy' learnts (n - k)
+  return ()
+
+removeWatch' :: Maybe MyClause -> StateT MySolver IO ()
+removeWatch' clause = return () -- TODO
+
+sortClauses' :: MyClauseManager -> Int -> StateT MySolver IO Int
+sortClauses' clauseManager limit' = return 8 --
+
