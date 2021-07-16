@@ -1,5 +1,6 @@
 {-# LANGUAGE
-    BangPatterns
+    RankNTypes
+  , BangPatterns
   , MultiWayIf
   , RecordWildCards
   , ScopedTypeVariables
@@ -23,8 +24,8 @@ import SAT.Mios.Criteria
 import SAT.Mios.Util.StateT
 
 -- whether the clause is simplifiable
-simplify' :: MyClause -> StateT MySolver IO Bool
-simplify' clause = do
+canSimplify' :: MyClause -> StateT MySolver IO Bool
+canSimplify' clause = do
   n <- liftIO $ get' clause -- TODO implement SingleStorage for MyClause
   let
     loop :: Int -> StateT MySolver IO Bool
@@ -34,10 +35,6 @@ simplify' clause = do
       if v == 1 then return True else loop (i + 1)
   loop 1
   return True
-
-analyze' :: MyClause -> StateT MySolver IO Int
-analyze' clause = do
-  return 0 -- TODO
 
 propagate' :: StateT MySolver IO (Maybe MyClause)
 propagate' = do
@@ -141,7 +138,8 @@ reduceDB' = do
         loop (i+1)
   k <- sortClauses' lvec $ div n 2 -- k is the number of clauses not to be purged
   loop 1
-  zoom watches reset' -- TODO
+  -- zoom watches reset' -- TODO
+  reset' watches
   SAT.Mios.Util.StateT.shrinkBy' learnts (n - k)
   return ()
 
@@ -150,4 +148,110 @@ removeWatch' clause = return () -- TODO
 
 sortClauses' :: MyClauseManager -> Int -> StateT MySolver IO Int
 sortClauses' clauseManager limit' = return 8 --
+
+analyze' :: MyClause -> StateT MySolver IO Int
+analyze' confl = do
+  reset' litsLearnt -- redefine state version if it's vector/stack/..., otherwise use zoom
+  pushTo' litsLearnt 0
+  dl <- myDecisionLevel
+  let
+    loopOnClauseChain :: MyClause -> Lit -> Int -> Int -> Int -> StateT MySolver IO Int
+    loopOnClauseChain clause p ti bl pathC = do -- p : proposition, ti : trail index, bl : backtrack level
+      let d = clause ^. rank
+      state <- get
+      when (d /= 0) $ zoom (someLens state clause) clauseBumpActivity -- you sure about this ?
+      clauseSize <- get'WithState $ clause ^. lits
+      let
+        lstack = clause ^. lits
+        loopOnLiterals :: Int -> Int -> Int -> StateT MySolver IO (Int, Int)
+        loopOnLiterals ((<= clauseSize) -> False) b pc = return (b, pc)
+        loopOnLiterals j b pc = do
+          (q :: Lit) <- getNthWithState lstack j
+          let v = lit2var q
+          sn <- getNth' an'seen j
+          l <- getNth' level v
+          if not sn && l > 0 then do -- not seen || l > 0
+            varBumpActivity' v
+            setNth' an'seen v True
+            if l >= dl then
+              loopOnLiterals (j+1) b (pc+1)
+            else do
+              pushTo' litsLearnt q
+              loopOnLiterals (j+1) (max b l) pc
+          else
+            loopOnLiterals (j+1) b pc -- loop on literals done
+      -- let finished
+      (b', pathC') <- loopOnLiterals (if p == bottomLit then 1 else 2) bl pathC
+      let
+        nextLit :: Int -> StateT MySolver IO Int
+        nextLit i = do seen <- getNth' an'seen . lit2var =<< getNth' trail i
+                       if not seen then nextLit (i-1) else return (i-1)
+      trail_index <- nextLit (ti + 1)
+      nextP <- getNth' trail (trail_index + 1)
+      let nextVar = lit2var nextP
+      (Just confl') <- getNth' reason nextVar
+      setNth' an'seen nextVar False
+      if pathC' > 1
+      then loopOnClauseChain confl' nextP (trail_index - 1) b' (pathC' - 1)
+      else setNth' litsLearnt 1 (negateLit nextP) >> return b'
+      return 0
+  return 0
+
+clauseBumpActivity :: StateT MyClause IO ()
+clauseBumpActivity = do
+  -- TODO
+  return ()
+
+varBumpActivity' :: Var -> StateT MySolver IO ()
+varBumpActivity' var = return () -- TODO
+
+someLens :: MySolver -> MyClause -> Lens' MySolver MyClause
+someLens solver clause = lens getter setter where
+  getter = const clause
+  setter oldSolver newClause = oldSolver
+
+search :: StateT MySolver IO Bool
+search = do
+  let loop :: StateT MySolver IO Bool
+      loop = do
+        confl <- propagate'
+        d <- myDecisionLevel
+        case confl of
+          Just mc -> do
+            -- r <- use rootLevel TODO: remove rootlevel
+            if d == 0 then do
+              return False
+            else do
+              backtrackLevel <- analyze' mc
+              myCancelUntil backtrackLevel
+              k <- get'' litsLearnt
+              when (k == 1) $ do
+                (v :: Var) <- lit2var <$> getNth' litsLearnt 1
+                setNth' level v 0
+              varDecayActivity'
+              clauseDecayActivity'
+              loop
+          Nothing -> do
+            when (d == 0) $ void simplifyDB'
+            (k1 :: Int) <- get'' learnts
+            (k2 :: Int) <- get'' trail
+            (n1 :: Int) <- floor <$> use maxLearnts
+            when (n1 < k1 - k2) $ do
+              reduceDB'
+            nv <- use nVars
+            if k2 == nv then return True
+            else do
+              s <- get
+              v <- liftIO $ selectVO s
+              unsafeEnqueue' v Nothing
+              loop
+  return True
+
+varDecayActivity' :: StateT MySolver IO ()
+varDecayActivity' = return ()
+clauseDecayActivity' :: StateT MySolver IO ()
+clauseDecayActivity' = return ()
+
+simplifyDB' :: StateT MySolver IO Bool
+simplifyDB' = return True
 
