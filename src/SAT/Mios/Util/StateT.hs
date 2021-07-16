@@ -58,3 +58,8 @@ writeIORef :: Lens' s (R.IORef t) -> t -> StateT s IO ()
 writeIORef l val = do
     ref <- use l
     liftIO $ R.writeIORef ref val
+
+reset' :: VecFamily t a => Lens' s t -> StateT s IO ()
+reset' l = do
+    to_reset <- use l
+    liftIO $ reset to_reset
