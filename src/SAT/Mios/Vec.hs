@@ -102,10 +102,10 @@ instance VecFamily (UVector Int) Int where
 
 data instance Vec Int = ByteArrayInt (BA.MutableByteArray RealWorld)
 data instance Vec Double = ByteArrayDouble (BA.MutableByteArray RealWorld)
-
+data instance Vec Bool = ByteArrayBool (BA.MutableByteArray RealWorld)
 type ByteArrayInt = Vec Int
 type ByteArrayDouble = Vec Double
-
+type ByteArrayBool = Vec Bool
 instance VecFamily ByteArrayInt Int where
   {-# SPECIALIZE INLINE getNth :: ByteArrayInt -> Int -> IO Int #-}
   getNth (ByteArrayInt v) i = BA.readByteArray v i
@@ -150,7 +150,7 @@ instance VecFamily ByteArrayDouble Double where
                   BA.setByteArray v 1 n k
                   return $ ByteArrayDouble v
   asList (ByteArrayDouble v) = mapM (BA.readByteArray v) [0 .. div (BA.sizeofMutableByteArray v) 8 - 1]
-
+instance VecFamily ByteArrayBool Bool where
 -- | returns the number of allocated slots
 {-# INLINE realLength #-}
 realLength :: Vec Int -> Int

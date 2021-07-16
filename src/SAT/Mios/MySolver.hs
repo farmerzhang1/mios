@@ -51,7 +51,7 @@ data MySolver = MySolver
               , _maxLearnts  :: Double            -- ^ used in 'SAT.Mios.Main.search'
                 -------- Working Memory
               , _ok          :: !Int              -- ^ internal flag
-              , _an'seen     :: !(Vec Int)         -- ^ used in 'SAT.Mios.Main.analyze'
+              , _an'seen     :: !(Vec Bool)         -- ^ used in 'SAT.Mios.Main.analyze'
               , _an'toClear  :: !Stack             -- ^ used in 'SAT.Mios.Main.analyze'
               , _an'stack    :: !Stack             -- ^ used in 'SAT.Mios.Main.analyze'
               , _an'lastDL   :: !Stack             -- ^ last decision level used in 'SAT.Mios.Main.analyze'
@@ -106,7 +106,7 @@ newMySolver conf (CNFDescription nv dummy_nc _) =
     <*> return 2000                          -- maxLearnts
     -- Working Memory
     <*> return LiftedT                       -- ok
-    <*> newVec nv 0                        -- an'seen
+    <*> newVec nv False                        -- an'seen
     <*> newStack nv                        -- an'toClear
     <*> newStack nv                        -- an'stack
     <*> newStack nv                        -- an'lastDL
