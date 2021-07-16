@@ -79,7 +79,7 @@ claBumpActivity s@Solver{..} Clause{..} = do
   a <- (+) <$> get' activity <*> get' claInc
   set' activity a
   when (claActivityThreshold <= a) $ claRescaleActivity s
-
+claBumpActivity _ _ = return ()
 -- | __Fig. 14 (p.19)__
 {-# INLINE claDecayActivity #-}
 claDecayActivity :: Solver -> IO ()
