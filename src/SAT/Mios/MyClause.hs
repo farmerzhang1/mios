@@ -61,6 +61,10 @@ data MyClauseManager = MyClauseManager
   , _keyVector    :: R.IORef (Vec Int)              -- Int list
   }
 makeLenses ''MyClauseManager
+instance SingleStorage MyClauseManager Int where
+  get' = _
+  set' = _
+instance StackFamily MyClauseManager Int where
 
 shrinkBy' :: Int -> StateT MyClauseManager IO ()
 shrinkBy' k = do
@@ -103,11 +107,12 @@ getKeyVector' MyClauseManager{..} = R.readIORef _keyVector
 --   setNth = error "no setNth method for my clause manager"
 --   {-# SPECIALIZE INLINE reset :: MyClauseManager -> IO () #-}
 --   reset m = SAT.Mios.Types.set' (_nActives m) 0
-reset' :: StateT MyClauseManager IO ()
-reset' = nActives .= 0
+resetCM :: StateT MyClauseManager IO ()
+resetCM = nActives .= 0
 instance VecFamily MyClauseVector (Maybe MyClause) where -- TODO
 
 type MyWatcherList = V.Vector MyClauseManager
+instance VecFamily MyWatcherList MyClause where
 
 pushClauseWithKey' :: Maybe MyClause -> Lit -> StateT MyClauseManager IO ()
 pushClauseWithKey' c k = do
