@@ -144,12 +144,12 @@ analyze s@Solver{..} confl = do
         d <- getRank c
         when (0 /= d) $ claBumpActivity s c
         -- update LBD like #Glucose4.0
-        when (2 < d) $ do
-          nblevels <- lbdOf s (lits c)
-          when (nblevels + 1 < d) $ -- improve the LBD
-            -- when (d <= 30) $ set' (protected c) True -- 30 is `lbLBDFrozenClause`
-            -- seems to be interesting: keep it fro the next round
-            setRank c nblevels     --  Update it
+        -- when (2 < d) $ do
+        --   nblevels <- lbdOf s (lits c)
+        --   when (nblevels + 1 < d) $ -- improve the LBD
+        --     -- when (d <= 30) $ set' (protected c) True -- 30 is `lbLBDFrozenClause`
+        --     -- seems to be interesting: keep it fro the next round
+        --     setRank c nblevels     --  Update it
         sc <- get' c
         let lstack = lits c
             loopOnLiterals :: Int -> Int -> Int -> IO (Int, Int)
@@ -604,7 +604,7 @@ simplifyDB s@Solver{..} = do
 search :: Solver -> IO Bool
 search s@Solver{..} = do
   -- clear model
-  let delta = (sqrt . fromIntegral) nVars
+  -- let delta = (sqrt . fromIntegral) nVars
   let loop :: Bool -> IO Bool
       loop restart = do
         confl <- propagate s
@@ -623,14 +623,14 @@ search s@Solver{..} = do
                               setNth level v 0
                             varDecayActivity s
                             claDecayActivity s
-                            -- learnt DB Size Adjustment
-                            modify' learntSCnt (subtract 1)
-                            cnt <- get' learntSCnt
-                            when (cnt == 0) $ do
-                              t' <- (* 1.5) <$> get' learntSAdj
-                              set' learntSAdj t'
-                              set' learntSCnt $ floor t'
-                              modify' maxLearnts (+ delta)
+                            -- -- learnt DB Size Adjustment
+                            -- modify' learntSCnt (subtract 1)
+                            -- cnt <- get' learntSCnt
+                            -- when (cnt == 0) $ do
+                            --   t' <- (* 1.5) <$> get' learntSAdj
+                            --   set' learntSAdj t'
+                            --   set' learntSCnt $ floor t'
+                            --   modify' maxLearnts (+ delta)
                             loop =<< checkRestartCondition s lbd' d
           else do when (d == 0) . void $ simplifyDB s -- Simplify the set of problem clauses
                   k1 <- get' learnts
@@ -643,25 +643,11 @@ search s@Solver{..} = do
                      | restart -> do                  -- Reached bound on number of conflicts
                          (s `cancelUntil`) =<< get' rootLevel -- force a restart
                          -- claRescaleActivityAfterRestart s
-{-
-                         let toggle :: Int -> Int
-                             toggle LiftedT = LiftedF
-                             toggle LiftedF = LiftedT
-                             toggle x = x
-                             nv = nVars
-                             toggleAt :: Int -> IO ()
-                             toggleAt ((<= nv) -> False) = return ()
-                             toggleAt i = modifyNth phases toggle i >> toggleAt (i + 1)
-                         rm <- get' restartMode
-                         when (rm == 1) $ toggleAt 1
--}
                          loop False
                      | otherwise -> do                -- New variable decision
                          v <- selectVO s
-                         -- #phasesaving <<<<  many have heuristic for polarity here
                          oldVal <- getNth phases v
                          unsafeAssume s $ var2lit v (0 < oldVal) -- cannot return @False@
-                         -- #phasesaving >>>>
                          loop False
   loop False
 
